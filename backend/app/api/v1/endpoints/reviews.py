@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database.base import get_db
 from app.api.v1.deps import get_current_user
@@ -162,10 +162,11 @@ async def delete_pr_review(
 @router.post("/pr/{pr_id}/rerun")
 async def rerun_pr_review(
     pr_id: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    from app.workers.review_tasks import process_pull_request_review
+    from app.workers.review_tasks import process_review
 
     pr = db.query(PullRequest).filter(PullRequest.id == pr_id).first()
     if not pr:
@@ -180,5 +181,5 @@ async def rerun_pr_review(
     pr.status = PRStatus.PENDING
     db.commit()
 
-    process_pull_request_review.delay(pr_id)
+    background_tasks.add_task(process_review, pr_id)
     return {"message": "Review re-queued"}

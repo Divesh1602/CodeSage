@@ -1,19 +1,18 @@
 import json
-from fastapi import APIRouter, Request, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Request, HTTPException, status, Depends
 from sqlalchemy.orm import Session
-from fastapi import Depends
 from app.database.base import get_db
 from app.github.client import verify_webhook_signature
 from app.models.repository import Repository
 from app.models.pull_request import PullRequest, PRStatus
-from app.workers.review_tasks import process_pull_request_review
+from app.workers.review_tasks import process_review
 from app.core.logging import logger
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
 @router.post("/github")
-async def github_webhook(request: Request, db: Session = Depends(get_db)):
+async def github_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     payload_bytes = await request.body()
     signature = request.headers.get("X-Hub-Signature-256", "")
 
@@ -76,7 +75,7 @@ async def github_webhook(request: Request, db: Session = Depends(get_db)):
         pr.status = PRStatus.PENDING
         db.commit()
 
-    process_pull_request_review.delay(pr.id)
+    background_tasks.add_task(process_review, pr.id)
     logger.info("review_job_queued", pr_id=pr.id, pr_number=pr_number)
 
     return {"status": "accepted", "pr_id": pr.id}
