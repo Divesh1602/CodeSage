@@ -24,9 +24,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_origins = {"http://localhost:3000"}
+for _o in settings.FRONTEND_URL.split(","):
+    _o = _o.strip().rstrip("/")
+    if _o:
+        _origins.add(_o)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:3000"],
+    allow_origins=list(_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
